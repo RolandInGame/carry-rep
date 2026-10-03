@@ -1,0 +1,23 @@
+# CarryRep settings. One "key = value" per line. Lines starting with # are comments.
+
+# Bot token (Discord Developer Portal > your app > Bot > Reset Token). Required.
+token =
+
+# Game this bot serves: d4 (Diablo IV), poe2 (Path of Exile 2), wow (World of Warcraft),
+# or any other id for generic wording.
+game = d4
+
+# Display name of the game. Empty = the name of the game above (Diablo IV for d4).
+game_name =
+
+# Test server ID: slash commands appear there instantly. Empty = none.
+guild =
+
+# Reviewer's Discord account must be at least this many days old. Use 0 only for testing.
+min_account_days = 30
+
+# Maximum new reviews per reviewer per 24 hours.
+daily_review_limit = 10
+
+# Link shown at the bottom of reputation cards, e.g. the GitHub repository. Empty = none.
+project_url =
