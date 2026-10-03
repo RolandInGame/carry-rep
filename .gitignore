@@ -1,1 +1,8 @@
+data.db*
+*.csv
+__pycache__/
+# local settings and secrets
 config.txt
+python.txt
+logs/
+backups/
