@@ -1,6 +1,6 @@
 """Experiment numbers for all game bots (they share data.db), per game and per server, plus CSV exports.
 
-  python rep_export.py            -> prints the summary, writes servers.csv / boosters.csv / reviews.csv
+  python rep_export.py            -> prints the summary, writes servers.csv / boosters.csv / reviews.csv / leads.csv
 """
 import csv
 import sqlite3
@@ -60,10 +60,27 @@ for r in rows:
     print(f"{r[0]:6} {(r[2] or '')[:30]:30}  members={r[3]}  boosters={r[6]}  reviews={r[7]}  lookups={r[8]}"
           f"  panel_users={r[9]}" + ("  (left)" if r[5] else ""))
 
+# Warm leads: servers where people used the bot through their own (user) install,
+# but the bot itself is not installed. Names are unknown there; ask the listed users which server it is.
+leads = con.execute("""
+  SELECT e.game, e.guild_id, COUNT(*) AS uses, COUNT(DISTINCT e.user_id) AS users,
+    SUM(e.name='suggest') AS suggestions, MAX(e.ts) AS last_seen,
+    GROUP_CONCAT(DISTINCT b.username) AS boosters
+  FROM events e LEFT JOIN boosters b ON b.game=e.game AND b.user_id=e.user_id
+  WHERE e.guild_id<>'' AND e.name NOT IN ('guild_join','guild_leave')
+    AND NOT EXISTS (SELECT 1 FROM guilds g WHERE g.game=e.game AND g.guild_id=e.guild_id AND g.left_at IS NULL)
+  GROUP BY e.game, e.guild_id ORDER BY users DESC, uses DESC""").fetchall()
+lead_head = ["game", "guild_id", "uses", "users", "suggestions", "last_seen", "registered_boosters_seen"]
+print("\n== Warm leads (used via user install, bot not installed) ==")
+for l in leads[:20]:
+    print(f"{l[0]:6} {l[1]}  users={l[3]}  uses={l[2]}  suggestions={l[4]}  last={l[5]}  boosters={l[6] or '-'}")
+with open(BASE / "leads.csv", "w", newline="", encoding="utf-8-sig") as f:
+    w = csv.writer(f); w.writerow(lead_head); w.writerows(leads)
+
 with open(BASE / "servers.csv", "w", newline="", encoding="utf-8-sig") as f:
     w = csv.writer(f); w.writerow(head); w.writerows(rows)
 for table in ("boosters", "reviews"):
     cur = con.execute(f"SELECT * FROM {table} ORDER BY game")
     with open(BASE / f"{table}.csv", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f); w.writerow([d[0] for d in cur.description]); w.writerows(cur.fetchall())
-print("\nwritten: servers.csv, boosters.csv, reviews.csv")
+print("\nwritten: servers.csv, boosters.csv, reviews.csv, leads.csv")

@@ -517,6 +517,24 @@ T = {
               "1. Aperte o botão abaixo e escolha **Adicionar aos meus apps** (ou adicione ao seu servidor).\n"
               "2. Use `/register`.\n"
               "3. Depois de cada pedido, poste `/myrep` e peça ao comprador para apertar **Avaliar**."},
+    "btn_suggest": {"en": "Suggest to admins", "fr": "Proposer aux admins", "de": "Den Admins vorschlagen",
+                    "es": "Sugerir a los admins", "pt": "Sugerir aos admins"},
+    "btn_add_server": {"en": "Add to this server", "fr": "Ajouter à ce serveur", "de": "Zu diesem Server hinzufügen",
+                       "es": "Añadir a este servidor", "pt": "Adicionar a este servidor"},
+    "suggest_msg": {
+        "en": "{user} suggests adding {app} here, so reviews written in this server count toward boosters' reputation on every server. Admins can add it below.",
+        "fr": "{user} propose d'ajouter {app} ici : les avis écrits sur ce serveur compteraient pour la réputation des boosters partout. Les admins peuvent l'ajouter ci-dessous.",
+        "de": "{user} schlägt vor, {app} hier hinzuzufügen: Bewertungen von diesem Server würden dann überall für die Reputation der Booster zählen. Admins können ihn unten hinzufügen.",
+        "es": "{user} sugiere añadir {app} aquí: las valoraciones de este servidor contarían para la reputación de los boosters en todas partes. Los admins pueden añadirlo abajo.",
+        "pt": "{user} sugere adicionar {app} aqui: as avaliações deste servidor contariam para a reputação dos boosters em todo lugar. Os admins podem adicioná-lo abaixo."},
+    "suggest_recent": {"en": "This server was already asked recently. Thanks!",
+                       "fr": "Ce serveur a déjà été sollicité récemment. Merci !",
+                       "de": "Dieser Server wurde vor Kurzem schon gefragt. Danke!",
+                       "es": "Ya se le pidió a este servidor hace poco. ¡Gracias!",
+                       "pt": "Este servidor já foi consultado recentemente. Obrigado!"},
+    "suggest_installed": {"en": "This server already has the bot. 🎉", "fr": "Ce serveur a déjà le bot. 🎉",
+                          "de": "Dieser Server hat den Bot schon. 🎉", "es": "Este servidor ya tiene el bot. 🎉",
+                          "pt": "Este servidor já tem o bot. 🎉"},
     "help_vote": {"en": "Like it? Upvote it: {url}", "fr": "Ça te plaît ? Vote pour lui : {url}",
                   "de": "Gefällt's dir? Stimm dafür ab: {url}", "es": "¿Te gusta? Vota por él: {url}",
                   "pt": "Curtiu? Vote nele: {url}"},
@@ -681,7 +699,8 @@ async def do_lookup(it: discord.Interaction, target: discord.abc.User, public=Fa
         key = "not_registered_self" if target.id == it.user.id else "err_not_booster"
         return await it.response.send_message(t(key, lang, booster=target.mention), ephemeral=True,
                                               allowed_mentions=NO_PINGS)
-    await it.response.send_message(embed=e, view=card_view(target, lang), ephemeral=not public,
+    suggest = public and it.guild_id is not None and not bot_in_guild(it)
+    await it.response.send_message(embed=e, view=card_view(target, lang, suggest), ephemeral=not public,
                                    allowed_mentions=NO_PINGS)
 
 
@@ -796,10 +815,63 @@ class GetCardButton(discord.ui.DynamicItem[discord.ui.Button], template=r"rep:ge
         await it.response.send_message(t("getcard", lang), view=link, ephemeral=True)
 
 
-def card_view(target: discord.abc.User, lang):
+SUGGEST_COOLDOWN_DAYS = 7  # one public suggestion per server per week
+
+
+def bot_in_guild(it: discord.Interaction):
+    """True if the bot itself is a member of the server where this interaction happens."""
+    return it.guild_id is not None and it.client.get_guild(it.guild_id) is not None
+
+
+def install_url(client, guild_id=None):
+    url = (f"https://discord.com/oauth2/authorize?client_id={client.application_id}"
+           "&scope=bot+applications.commands&permissions=19456")
+    return url + (f"&guild_id={guild_id}&disable_guild_select=true" if guild_id else "")
+
+
+def recently_suggested(guild_id):
+    with db() as c:
+        return c.execute("SELECT 1 FROM events WHERE game=? AND name='suggest' AND guild_id=? "
+                         f"AND ts > strftime('%Y-%m-%dT%H:%M:%SZ','now','-{SUGGEST_COOLDOWN_DAYS} days')",
+                         (GAME, str(guild_id))).fetchone() is not None
+
+
+class SuggestButton(discord.ui.DynamicItem[discord.ui.Button], template=r"rep:suggest"):
+    """Shown on cards posted (via user install) in servers without the bot: lets a member publicly
+    suggest the bot to that server's admins, with an add-to-this-server link."""
+
+    def __init__(self, label="Suggest to admins"):
+        super().__init__(discord.ui.Button(label=label[:80], emoji="📣", style=discord.ButtonStyle.secondary,
+                                           custom_id="rep:suggest"))
+
+    @classmethod
+    async def from_custom_id(cls, it, item, match):
+        return cls()
+
+    async def callback(self, it: discord.Interaction):
+        lang = lang_of(it.locale)
+        if it.guild_id is None:
+            return await it.response.send_message(t("getcard", lang), ephemeral=True)
+        if bot_in_guild(it):
+            return await it.response.send_message(t("suggest_installed", lang), ephemeral=True)
+        if recently_suggested(it.guild_id):
+            log_event("suggest_dup", it.user.id, it.guild_id)
+            return await it.response.send_message(t("suggest_recent", lang), ephemeral=True)
+        log_event("suggest", it.user.id, it.guild_id)
+        glang = lang_of(it.guild_locale) if it.guild_locale else lang
+        link = discord.ui.View()
+        link.add_item(discord.ui.Button(label=t("btn_add_server", glang), emoji="➕",
+                                        url=install_url(it.client, it.guild_id)))
+        await it.response.send_message(t("suggest_msg", glang, user=it.user.mention, app=it.client.user.name),
+                                       view=link, allowed_mentions=NO_PINGS)
+
+
+def card_view(target: discord.abc.User, lang, suggest=False):
     v = discord.ui.View(timeout=None)
     v.add_item(CardReviewButton(target.id, t("btn_card_vouch", lang, name=target.display_name)))
     v.add_item(GetCardButton(t("btn_getcard", lang)))
+    if suggest:
+        v.add_item(SuggestButton(t("btn_suggest", lang)))
     return v
 
 
@@ -864,7 +936,7 @@ class Bot(discord.Client):
 
     async def setup_hook(self):
         self.add_view(Panel())
-        self.add_dynamic_items(CardReviewButton, GetCardButton)
+        self.add_dynamic_items(CardReviewButton, GetCardButton, SuggestButton)
         if DEV_GUILD_ID:
             g = discord.Object(id=int(DEV_GUILD_ID))
             self.tree.copy_global_to(guild=g)

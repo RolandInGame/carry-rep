@@ -8,6 +8,7 @@ Each game gets its own bot (Diablo IV built in; see [Games](#games)); all bots r
 - All servers share one database, so reviews collected in one server show up everywhere. Cards also show the booster's ratings in the other games.
 - Server admins can post a button panel with `/panel` and see activity with `/stats`.
 - Every card has a **Review** button (anyone who sees it can review that booster) and a **Get your own card** button (how to add the app and register), so cards spread the bot on their own.
+- A card posted (through a user install) in a server that doesn't have the bot also gets a **Suggest to admins** button: one click posts a public suggestion with an add-to-this-server link (at most once per server per week). `rep_export.py` lists those servers as warm leads (`leads.csv`).
 
 No web page, no payments, no direct messages. Languages: English, French, German, Spanish, Portuguese (follows each user's Discord language).
 
