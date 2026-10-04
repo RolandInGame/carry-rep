@@ -487,24 +487,51 @@ T = {
                 "pt": "Pronto: {n} registro(s) apagado(s)."},
     "nothing": {"en": "No data under your name.", "fr": "Aucune donnée à ton nom.", "de": "Keine Daten unter deinem Namen.",
                 "es": "No hay datos a tu nombre.", "pt": "Nenhum dado em seu nome."},
+    "btn_card_vouch": {"en": "Review {name}", "fr": "Noter {name}", "de": "{name} bewerten",
+                       "es": "Valorar a {name}", "pt": "Avaliar {name}"},
+    "btn_getcard": {"en": "Get your own card", "fr": "Avoir ma carte", "de": "Eigene Karte holen",
+                    "es": "Consigue tu tarjeta", "pt": "Pegue seu cartão"},
+    "btn_install": {"en": "Add {app}", "fr": "Ajouter {app}", "de": "{app} hinzufügen",
+                    "es": "Añadir {app}", "pt": "Adicionar {app}"},
+    "getcard": {
+        "en": "Get your own {game} booster card, with reviews that follow you to every server:\n"
+              "1. Press the button below and choose **Add to My Apps** (or add it to your server).\n"
+              "2. Run `/register`.\n"
+              "3. After each order, post `/myrep` and ask the buyer to press **Review**.",
+        "fr": "Obtiens ta carte de booster {game}, avec des avis qui te suivent sur tous les serveurs :\n"
+              "1. Appuie sur le bouton ci-dessous et choisis **Ajouter à mes applis** (ou ajoute-le à ton serveur).\n"
+              "2. Lance `/register`.\n"
+              "3. Après chaque commande, poste `/myrep` et demande à l'acheteur d'appuyer sur **Noter**.",
+        "de": "Hol dir deine eigene {game}-Booster-Karte, mit Bewertungen, die dir auf jeden Server folgen:\n"
+              "1. Drück unten auf den Button und wähle **Zu meinen Apps hinzufügen** (oder füg sie deinem Server hinzu).\n"
+              "2. Führe `/register` aus.\n"
+              "3. Poste nach jedem Auftrag `/myrep` und bitte den Käufer, auf **Bewerten** zu drücken.",
+        "es": "Consigue tu tarjeta de booster de {game}, con valoraciones que te siguen a todos los servidores:\n"
+              "1. Pulsa el botón de abajo y elige **Añadir a mis apps** (o añádela a tu servidor).\n"
+              "2. Usa `/register`.\n"
+              "3. Tras cada pedido, publica `/myrep` y pide al comprador que pulse **Valorar**.",
+        "pt": "Tenha seu próprio cartão de booster de {game}, com avaliações que te acompanham em todo servidor:\n"
+              "1. Aperte o botão abaixo e escolha **Adicionar aos meus apps** (ou adicione ao seu servidor).\n"
+              "2. Use `/register`.\n"
+              "3. Depois de cada pedido, poste `/myrep` e peça ao comprador para apertar **Avaliar**."},
     "posted": {"en": "Panel posted.", "fr": "Panneau publié.", "de": "Panel veröffentlicht.",
                "es": "Panel publicado.", "pt": "Painel publicado."},
     "help": {
         "en": "**Boosters:** `/register` once, then share `/myrep` anywhere.\n"
               "**Buyers:** `/rep @booster` before you pay, `/vouch @booster` after.\n"
-              "Reviews follow boosters across every server that uses this bot. `/deletemydata` erases everything.",
+              "Reviews follow boosters across every server that uses this bot. `/deletemydata` erases everything.\nAdd the app to your own account to use `/myrep` in any server that allows external apps.",
         "fr": "**Boosters :** `/register` une fois, puis partage `/myrep` partout.\n"
               "**Acheteurs :** `/rep @booster` avant de payer, `/vouch @booster` après.\n"
-              "Les avis suivent les boosters sur tous les serveurs qui utilisent ce bot. `/deletemydata` efface tout.",
+              "Les avis suivent les boosters sur tous les serveurs qui utilisent ce bot. `/deletemydata` efface tout.\nAjoute l'appli à ton compte pour utiliser `/myrep` sur tout serveur qui autorise les applis externes.",
         "de": "**Booster:** einmal `/register`, dann `/myrep` überall teilen.\n"
               "**Käufer:** `/rep @booster` vor dem Bezahlen, `/vouch @booster` danach.\n"
-              "Bewertungen folgen Boostern auf alle Server mit diesem Bot. `/deletemydata` löscht alles.",
+              "Bewertungen folgen Boostern auf alle Server mit diesem Bot. `/deletemydata` löscht alles.\nFüg die App deinem Konto hinzu, um `/myrep` auf jedem Server mit erlaubten externen Apps zu nutzen.",
         "es": "**Boosters:** `/register` una vez y luego comparte `/myrep` donde quieras.\n"
               "**Compradores:** `/rep @booster` antes de pagar, `/vouch @booster` después.\n"
-              "Las valoraciones siguen a los boosters en todos los servidores que usan este bot. `/deletemydata` lo borra todo.",
+              "Las valoraciones siguen a los boosters en todos los servidores que usan este bot. `/deletemydata` lo borra todo.\nAñade la app a tu cuenta para usar `/myrep` en cualquier servidor que permita apps externas.",
         "pt": "**Boosters:** `/register` uma vez e depois compartilhe `/myrep` em qualquer lugar.\n"
               "**Compradores:** `/rep @booster` antes de pagar, `/vouch @booster` depois.\n"
-              "As avaliações acompanham os boosters em todos os servidores que usam este bot. `/deletemydata` apaga tudo."},
+              "As avaliações acompanham os boosters em todos os servidores que usam este bot. `/deletemydata` apaga tudo.\nAdicione o app à sua conta para usar `/myrep` em qualquer servidor que permita apps externos."},
     "stats": {"en": "**This server**\nBoosters registered here: {reg}\nReviews written here: {rev}\n"
                     "Lookups here: {look}\nPanel clicks: {clicks}",
               "fr": "**Ce serveur**\nBoosters inscrits ici : {reg}\nAvis écrits ici : {rev}\n"
@@ -600,7 +627,7 @@ def error_text(status, lang, target):
             "not_booster": t("err_not_booster", lang, booster=target.mention)}.get(status)
 
 
-async def start_vouch(it: discord.Interaction, target: discord.abc.User, edit=False):
+async def start_vouch(it: discord.Interaction, target: discord.abc.User, edit=False, source=None):
     """Step 1 of a review: check the reviewer may review this booster, then show 1-5 star buttons.
     edit=True replaces the member-picker message (panel flow) instead of sending a new one."""
     lang = lang_of(it.locale)
@@ -609,7 +636,7 @@ async def start_vouch(it: discord.Interaction, target: discord.abc.User, edit=Fa
         log_event(f"vouch_{blocker}", it.user.id, it.guild_id, str(target.id))
         content, view = error_text(blocker, lang, target), None
     else:
-        content, view = t("pick_stars", lang, booster=target.mention), StarPicker(target)
+        content, view = t("pick_stars", lang, booster=target.mention), StarPicker(target, source)
     if edit:
         await it.response.edit_message(content=content, view=view, allowed_mentions=NO_PINGS)
     elif view:
@@ -618,7 +645,7 @@ async def start_vouch(it: discord.Interaction, target: discord.abc.User, edit=Fa
         await it.response.send_message(content, ephemeral=True, allowed_mentions=NO_PINGS)
 
 
-async def do_vouch(it: discord.Interaction, target: discord.abc.User, rating, comment):
+async def do_vouch(it: discord.Interaction, target: discord.abc.User, rating, comment, source=None):
     """Step 3 of a review: save it and announce it (4-5 stars) or confirm quietly (1-3 stars)."""
     lang = lang_of(it.locale)
     status = add_review(it.user.id, target.id, rating, comment, it.guild_id, age_days(it.user))
@@ -627,12 +654,14 @@ async def do_vouch(it: discord.Interaction, target: discord.abc.User, rating, co
     if error_text(status, lang, target):
         return await it.response.send_message(error_text(status, lang, target), ephemeral=True,
                                               allowed_mentions=NO_PINGS)
+    if source == "card":
+        log_event("cardbtn_vouch_saved", it.user.id, it.guild_id, str(target.id))
     if rating >= 4:  # good reviews are announced in the channel, low ones are recorded quietly
         msg = t("saved_public", lang, stars=stars(rating), reviewer=it.user.mention, booster=target.mention)
         comment = (comment or "").strip()[:200]
         if comment:
             msg += f"\n> {comment}"
-        await it.response.send_message(msg, allowed_mentions=NO_PINGS)
+        await it.response.send_message(msg, view=getcard_view(lang), allowed_mentions=NO_PINGS)
     else:
         await it.response.send_message(t("saved", lang, booster=target.mention), ephemeral=True,
                                        allowed_mentions=NO_PINGS)
@@ -646,7 +675,8 @@ async def do_lookup(it: discord.Interaction, target: discord.abc.User, public=Fa
         key = "not_registered_self" if target.id == it.user.id else "err_not_booster"
         return await it.response.send_message(t(key, lang, booster=target.mention), ephemeral=True,
                                               allowed_mentions=NO_PINGS)
-    await it.response.send_message(embed=e, ephemeral=not public, allowed_mentions=NO_PINGS)
+    await it.response.send_message(embed=e, view=card_view(target, lang), ephemeral=not public,
+                                   allowed_mentions=NO_PINGS)
 
 
 class RegisterForm(discord.ui.Modal):
@@ -672,9 +702,9 @@ class RegisterForm(discord.ui.Modal):
 class StarPicker(discord.ui.View):
     """Step 2 of a review: five grey buttons "1 ★" ... "5 ★". A click opens the comment form."""
 
-    def __init__(self, target: discord.abc.User):
+    def __init__(self, target: discord.abc.User, source=None):
         super().__init__(timeout=300)
-        self.target = target
+        self.target, self.source = target, source
         for n in range(1, 6):
             button = discord.ui.Button(label=f"{n} ★", row=0, style=discord.ButtonStyle.secondary)
             button.callback = self.make_callback(n)
@@ -682,17 +712,17 @@ class StarPicker(discord.ui.View):
 
     def make_callback(self, n):
         async def callback(it: discord.Interaction):
-            await it.response.send_modal(VouchForm(self.target, lang_of(it.locale), n))
+            await it.response.send_modal(VouchForm(self.target, lang_of(it.locale), n, self.source))
         return callback
 
 
 class VouchForm(discord.ui.Modal):
     """Optional comment for a review whose star rating was already chosen."""
 
-    def __init__(self, target: discord.abc.User, lang, rating):
+    def __init__(self, target: discord.abc.User, lang, rating, source=None):
         title = f"{stars(rating)} · " + t("vouch_title", lang, name=target.display_name)
         super().__init__(title=title[:45])
-        self.target, self.rating = target, rating
+        self.target, self.rating, self.source = target, rating, source
         label, ph = T["f_comment"][lang]
         ph = ph.format(done=GAME_CFG["done"][lang])
         self.comment = discord.ui.TextInput(label=label, placeholder=ph, required=False, max_length=200,
@@ -700,7 +730,7 @@ class VouchForm(discord.ui.Modal):
         self.add_item(self.comment)
 
     async def on_submit(self, it: discord.Interaction):
-        await do_vouch(it, self.target, self.rating, self.comment.value)
+        await do_vouch(it, self.target, self.rating, self.comment.value, self.source)
 
 
 class PickUser(discord.ui.View):
@@ -720,6 +750,57 @@ class PickUser(discord.ui.View):
             await start_vouch(it, target, edit=True)
         else:
             await do_lookup(it, target)
+
+
+class CardReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r"rep:card:vouch:(?P<id>[0-9]+)"):
+    """'Review <booster>' on every card: lets anyone who sees the card review that booster."""
+
+    def __init__(self, booster_id: int, label="Review"):
+        super().__init__(discord.ui.Button(label=label[:80], emoji="⭐", style=discord.ButtonStyle.primary,
+                                           custom_id=f"rep:card:vouch:{booster_id}"))
+        self.booster_id = booster_id
+
+    @classmethod
+    async def from_custom_id(cls, it, item, match):
+        return cls(int(match["id"]))
+
+    async def callback(self, it: discord.Interaction):
+        log_event("cardbtn_vouch", it.user.id, it.guild_id, str(self.booster_id))
+        target = it.client.get_user(self.booster_id) or await it.client.fetch_user(self.booster_id)
+        await start_vouch(it, target, source="card")
+
+
+class GetCardButton(discord.ui.DynamicItem[discord.ui.Button], template=r"rep:getcard"):
+    """'Get your own card': explains the three steps and links to the app's install page."""
+
+    def __init__(self, label="Get your own card"):
+        super().__init__(discord.ui.Button(label=label[:80], emoji="🪪", style=discord.ButtonStyle.secondary,
+                                           custom_id="rep:getcard"))
+
+    @classmethod
+    async def from_custom_id(cls, it, item, match):
+        return cls()
+
+    async def callback(self, it: discord.Interaction):
+        log_event("cardbtn_getcard", it.user.id, it.guild_id)
+        lang = lang_of(it.locale)
+        link = discord.ui.View()
+        link.add_item(discord.ui.Button(label=t("btn_install", lang, app=it.client.user.name)[:80],
+                                        url=f"https://discord.com/oauth2/authorize?client_id={it.client.application_id}"))
+        await it.response.send_message(t("getcard", lang), view=link, ephemeral=True)
+
+
+def card_view(target: discord.abc.User, lang):
+    v = discord.ui.View(timeout=None)
+    v.add_item(CardReviewButton(target.id, t("btn_card_vouch", lang, name=target.display_name)))
+    v.add_item(GetCardButton(t("btn_getcard", lang)))
+    return v
+
+
+def getcard_view(lang):
+    v = discord.ui.View(timeout=None)
+    v.add_item(GetCardButton(t("btn_getcard", lang)))
+    return v
 
 
 class ConfirmDelete(discord.ui.View):
@@ -777,6 +858,7 @@ class Bot(discord.Client):
 
     async def setup_hook(self):
         self.add_view(Panel())
+        self.add_dynamic_items(CardReviewButton, GetCardButton)
         if DEV_GUILD_ID:
             g = discord.Object(id=int(DEV_GUILD_ID))
             self.tree.copy_global_to(guild=g)

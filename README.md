@@ -7,6 +7,7 @@ Each game gets its own bot (Diablo IV built in; see [Games](#games)); all bots r
 - **Buyers** check a booster with `/rep @user` before paying, and leave one review with `/vouch @user` after.
 - All servers share one database, so reviews collected in one server show up everywhere. Cards also show the booster's ratings in the other games.
 - Server admins can post a button panel with `/panel` and see activity with `/stats`.
+- Every card has a **Review** button (anyone who sees it can review that booster) and a **Get your own card** button (how to add the app and register), so cards spread the bot on their own.
 
 No web page, no payments, no direct messages. Languages: English, French, German, Spanish, Portuguese (follows each user's Discord language).
 

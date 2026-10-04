@@ -30,6 +30,13 @@ for g in games:
               "GROUP BY booster_id HAVING COUNT(DISTINCT guild_id)>=2)", g))
     print("  lookups (/rep, panel)          :", one("SELECT COUNT(*) FROM events WHERE game=? AND name='lookup'", g))
     print("  cards shared (/myrep)          :", one("SELECT COUNT(*) FROM events WHERE game=? AND name='myrep'", g))
+    print("  card 'Review' clicks           :", one("SELECT COUNT(*) FROM events WHERE game=? AND name='cardbtn_vouch'", g))
+    print("  reviews saved via a card       :", one("SELECT COUNT(*) FROM events WHERE game=? AND name='cardbtn_vouch_saved'", g))
+    print("  'Get your own card' clickers   :",
+          one("SELECT COUNT(DISTINCT user_id) FROM events WHERE game=? AND name='cardbtn_getcard'", g),
+          "· registered afterwards:",
+          one("SELECT COUNT(DISTINCT c.user_id) FROM events c JOIN events r ON r.user_id=c.user_id AND r.game=c.game "
+              "AND r.name='register' AND r.ts>=c.ts WHERE c.game=? AND c.name='cardbtn_getcard'", g))
     print("  rejected reviews               :", dict(con.execute(
         "SELECT name, COUNT(*) FROM events WHERE game=? AND name LIKE 'vouch\\_%' ESCAPE '\\' GROUP BY name",
         (g,)).fetchall()))
