@@ -1,23 +1,28 @@
-# CarryRep settings. One "key = value" per line. Lines starting with # are comments.
+# CarryRep settings. "key = value" per line. Lines starting with # are comments.
+# [common] applies to every bot; a game section can override any of these keys for that bot.
 
-# Bot token (Discord Developer Portal > your app > Bot > Reset Token). Required.
-token =
-
-# Game this bot serves: d4 (Diablo IV), poe2 (Path of Exile 2), wow (World of Warcraft),
-# or any other id for generic wording.
-game = d4
-
-# Display name of the game. Empty = the name of the game above (Diablo IV for d4).
-game_name =
-
-# Test server ID: slash commands appear there instantly. Empty = none.
-guild =
-
-# Reviewer's Discord account must be at least this many days old. Use 0 only for testing.
+[common]
+# Reviewer's Discord account must be at least this many days old (not checked in the test server).
 min_account_days = 30
 
-# Maximum new reviews per reviewer per 24 hours.
+# Maximum new reviews per reviewer per 24 hours (per game).
 daily_review_limit = 10
 
 # Link shown at the bottom of reputation cards, e.g. the GitHub repository. Empty = none.
 project_url =
+
+# HTTP proxy for reaching Discord, e.g. http://127.0.0.1:7890 (the local HTTP port of your VPN client).
+# Empty = connect directly.
+proxy =
+
+# One section per game bot. The section name is the game id passed to bot.py / used in run_<id>.bat.
+# Built-in ids: d4 (Diablo IV), poe2 (Path of Exile 2), wow (World of Warcraft);
+# any other id works with generic wording (set game_name).
+[d4]
+# Bot token of this game's Discord application (Developer Portal > your app > Bot > Reset Token).
+token =
+# Display name of the game. Empty = built-in name (Diablo IV for d4).
+game_name =
+# Test server ID: slash commands appear there instantly; there you can also review yourself and
+# min_account_days does not apply (for testing and demos). Empty = none.
+guild =

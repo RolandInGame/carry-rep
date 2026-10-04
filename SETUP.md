@@ -2,23 +2,22 @@
 
 Step-by-step instructions for running CarryRep. See `README.md` for what the bot does.
 
-## Choosing the game
+## How it is organised
 
-Set `game` in `config.txt` to pick the game this bot serves. It changes the game name in panels, cards and command descriptions, and the example text in the forms.
+- **One folder, one database.** All game bots run from the same folder and share `data.db`. Every row records its game, so `rep_export.py` can show all games together, and a booster's card also lists their ratings in the other games.
+- **One bot per game.** Each game has its own Discord application (own name, own token, own Install Link) and its own start script, e.g. `run_d4.bat`.
+- **One settings file.** `config.txt` has a `[common]` section for shared settings and one `[<game id>]` section per bot.
 
-| `GAME` | Game |
+| Game id | Game |
 |---|---|
-| `d4` (default) | Diablo IV |
+| `d4` | Diablo IV |
 | `poe2` | Path of Exile 2 |
 | `wow` | World of Warcraft |
-| anything else | generic examples; set `game_name` too, e.g. `game = lastepoch` and `game_name = Last Epoch` |
+| anything else | generic wording; set `game_name`, e.g. `[lastepoch]` with `game_name = Last Epoch` |
 
-- The default is `game = d4` (Diablo IV).
-- To serve several games, create one Discord application and one copy of the folder per game. Their databases are separate.
+## First-time setup (per game)
 
-## First-time setup
-
-1. Open https://discord.com/developers/applications and click **New Application**. Pick a neutral name, e.g. CarryRep (you can change it later).
+1. Open https://discord.com/developers/applications and click **New Application**. Use a neutral name that tells the game apart, e.g. `CarryRep D4`.
 2. **Bot** page: click **Reset Token** and save the token (it is shown only once). Leave all three Privileged Gateway Intents **off**.
 3. **Installation** page:
    - Under Installation Contexts, enable **Guild Install** and **User Install**.
@@ -32,29 +31,55 @@ Set `game` in `config.txt` to pick the game this bot serves. It changes the game
 
 ## Settings (config.txt)
 
-All settings live in one file, `config.txt`, in the bot folder: one `key = value` per line, `#` for comments. `config.example.txt` contains every key with its default value. If `config.txt` is missing, the bot creates it from these defaults on the first run.
+`config.example.txt` contains every key with its default value; copy it to `config.txt`. If `config.txt` is missing, the bot creates it on the first run. `#` starts a comment.
 
-| Key | Value | Default |
-|---|---|---|
-| `token` | the bot token | empty (required) |
-| `game` | game id, see below | `d4` (Diablo IV) |
-| `game_name` | display name of the game | empty = name of the game in `game` |
-| `guild` | test server ID: commands appear there instantly | empty |
-| `min_account_days` | minimum reviewer account age in days | `30` |
-| `daily_review_limit` | new reviews per reviewer per 24 h | `10` |
-| `project_url` | link shown on cards, e.g. this repository | empty |
+```
+[common]
+min_account_days = 30
+daily_review_limit = 10
+project_url =
+proxy =
 
-`config.txt` is excluded from git, so the token is never published.
+[d4]
+token = <Diablo IV bot token>
+game_name =
+guild =
+```
+
+| Key | Section | Value | Default |
+|---|---|---|---|
+| `min_account_days` | common | minimum reviewer account age in days (not checked in the test server) | `30` |
+| `daily_review_limit` | common | new reviews per reviewer per 24 h, per game | `10` |
+| `project_url` | common | link shown on cards, e.g. the repository | empty |
+| `proxy` | common | HTTP proxy for reaching Discord, e.g. `http://127.0.0.1:7890` | empty = direct |
+| `token` | game | this game's bot token | required |
+| `game_name` | game | display name of the game | built-in name |
+| `guild` | game | test server ID: commands appear there instantly; self-reviews allowed and no minimum account age there (testing/demos) | empty |
+
+A game section may also override any `[common]` key for that bot only. `token`, `game_name` and `guild` are never taken from `[common]`. An old `config.txt` without sections still works: it is treated as the `[d4]` bot.
+
+`config.txt` is excluded from git, so tokens are never published.
+
+## Adding a game
+
+1. Create a new Discord application for it (steps above) and copy its token.
+2. Add a section to `config.txt`, e.g.
+   ```
+   [poe2]
+   token = <Path of Exile 2 bot token>
+   ```
+3. Copy `run_d4.bat` to `run_poe2.bat` and change `d4` to `poe2` inside it.
+4. Start it with `run_poe2.bat` (or `python bot.py poe2`). On an always-on Windows PC, run `install_windows.ps1` again so it gets its own startup task.
 
 ## Test run (macOS / Linux)
 
-1. In the `carry-rep-bot` folder, copy `config.example.txt` to `config.txt`. Fill in `token` and `guild` (your test server ID).
-2. For testing with a new account, set `min_account_days = 0`. Set it back to `30` before going live.
+1. Copy `config.example.txt` to `config.txt`. Under `[d4]`, fill in `token` and `guild` (your test server ID).
+2. In the test server (`guild`) you can review yourself and new accounts can review, so one account is enough for testing.
 3. Run:
    ```
-   cd carry-rep-bot
+   cd carry-rep
    pip install -r requirements.txt
-   python bot.py
+   python bot.py d4
    ```
 
 You should see `[bot] logged in as ...`. Test with two Discord accounts: account A runs `/register`, account B runs `/vouch` on A, then `/rep` on A.
@@ -64,16 +89,16 @@ You should see `[bot] logged in as ...`. Test with two Discord accounts: account
 No public IP is needed, only an internet connection.
 
 1. Install Python 3.10 or newer from python.org and tick **Add python.exe to PATH**. Do not use the Microsoft Store version.
-2. Copy the `carry-rep-bot` folder to the PC, e.g. `C:\carry-rep-bot`, and run `python -m pip install -r requirements.txt` inside it.
-3. Copy `config.example.txt` to `config.txt` and fill in the token and any other settings (see above). If you skip this, `run_bot.bat` creates `config.txt` and asks you to fill it in.
-4. Double-click `run_bot.bat` for a trial run. The window shows the bot's output (also saved in `logs\bot.log`). When it shows `[bot] logged in as ...`, the bot is online; close the window to stop it. If the token is missing or wrong, the window says so and waits.
+2. Copy the folder to the PC, e.g. `C:\carry-rep`, and run `python -m pip install -r requirements.txt` inside it.
+3. Copy `config.example.txt` to `config.txt` and fill in the tokens (see above).
+4. Double-click `run_d4.bat` for a trial run. The window shows the bot's output (also saved in `logs\bot-d4.log`). When it shows `[bot] logged in as ...`, the bot is online; close the window to stop it. If the token is missing or wrong, the window says so and waits. Each game runs in its own window.
 5. Open PowerShell as Administrator, go to the folder and run:
    ```
    powershell -ExecutionPolicy Bypass -File install_windows.ps1
    ```
-   This registers a startup task **CarryRep-&lt;folder name&gt;** (restarts the bot 30 s after a crash) and a daily 04:00 backup task **CarryRep-&lt;folder name&gt;-Backup** (keeps 14 backups), turns off sleep while on AC power, and starts the bot. Task names include the folder name, so bots for several games can run on the same PC.
+   This registers one startup task per `run_<game id>.bat` (**CarryRep-d4**, **CarryRep-poe2**, ...; each restarts its bot 30 s after a crash), a daily 04:00 backup task **CarryRep-Backup** for the shared database (keeps 14 backups), turns off sleep while on AC power, and starts the bots. Run it again after adding a game.
 
-To remove: delete both tasks in Task Scheduler, or run `Unregister-ScheduledTask CarryRep-<folder name>; Unregister-ScheduledTask CarryRep-<folder name>-Backup`.
+To remove a bot from startup: delete its task in Task Scheduler, or run e.g. `Unregister-ScheduledTask CarryRep-d4`.
 
 ## Checking the numbers
 
@@ -81,19 +106,17 @@ To remove: delete both tasks in Task Scheduler, or run `Unregister-ScheduledTask
 python rep_export.py
 ```
 
-Shows the number of servers with the bot installed, registered boosters, reviews and reviewers, boosters with at least one review, boosters reviewed on two or more servers, lookups, `/myrep` shares, rejected reviews (self-reviews, accounts too new, etc.), and a breakdown per server. It also writes `servers.csv`, `boosters.csv` and `reviews.csv`.
+For each game: servers with the bot installed, registered boosters, reviews and reviewers, boosters with at least one review, boosters reviewed on two or more servers, lookups, `/myrep` shares and rejected reviews. Then boosters registered in two or more games, and a breakdown per game and server. It also writes `servers.csv`, `boosters.csv` and `reviews.csv`.
 
 ## Publishing the code
 
-Never commit the token or data. `.gitignore` already excludes `config.txt`, `data.db`, CSV files, logs and backups; only `config.example.txt` (no token) is published. Check with `git status` before the first push.
+Never commit tokens or data. `.gitignore` already excludes `config.txt`, `data.db`, CSV files, logs and backups; only `config.example.txt` (no tokens) is published. Check with `git status` before pushing.
 
-```
-cd carry-rep-bot
-git init
-git add .
-git status          # make sure config.txt, data.db and *.csv are not listed
-git commit -m "Initial version"
-git branch -M main
-git remote add origin https://github.com/<your-account>/carry-rep.git
-git push -u origin main
-```
+## Troubleshooting: the bot can't reach Discord
+
+If the window stops after `connecting to Discord ...` with a timeout or connection error, the network is probably blocking Discord. A VPN client in its usual "system proxy" mode only covers browsers; Python ignores it. Either:
+
+- set `proxy` under `[common]` in `config.txt` to the VPN client's local **HTTP** proxy address, e.g. `proxy = http://127.0.0.1:7890` (the port is shown in the client's settings; SOCKS-only ports don't work), or
+- switch the VPN client to TUN / global / "enhanced" mode so all programs go through it.
+
+Then start the bot again. The first line of output shows the proxy in use.

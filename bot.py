@@ -1,6 +1,7 @@
 """
 CarryRep: a cross-server reputation bot for game boosters, running inside Discord.
-One bot serves one game, set in config.txt (default: Diablo IV).
+One bot (one Discord application) per game. All bots run from this folder and share one database,
+so the same booster can be looked up per game, and cards also show their ratings in other games.
 
 Boosters opt in with /register. Buyers leave one review per booster with /vouch.
 Anyone can look a booster up with /rep. Reviews are stored in one database, so a booster's
@@ -11,7 +12,7 @@ Commands
   /vouch user          review a registered booster: 1-5 star buttons, then an optional comment; again = update
   /rep user            look up a booster (only you see the answer)
   /myrep               post your own reputation card in the channel
-  /deletemydata        erase your registration, the reviews you received and the reviews you gave
+  /deletemydata        erase, in every game, your registration and the reviews you received and gave
   /help                short explanation
   /panel [language]    (admins) post a panel with buttons for the same actions
   /stats               (admins) activity on this server
@@ -25,11 +26,11 @@ Rules
 
 Languages: English, French, German, Spanish, Portuguese (each user's Discord language; fallback English).
 
-Configuration: config.txt next to bot.py, one "key = value" per line (see CONFIG_TEMPLATE below).
-If config.txt does not exist, the first run creates it with every setting at its default value;
-then fill in the token and run again. Data is stored in data.db next to bot.py.
+Configuration: config.txt next to bot.py (see CONFIG_TEMPLATE below): a [common] section with shared
+settings and one [<game id>] section per bot with its token. If config.txt does not exist, the first run
+creates it with every setting at its default value. All bots share data.db next to bot.py.
 
-Run: python bot.py
+Run: python bot.py <game id>      e.g. python bot.py d4   (run_d4.bat does this on Windows)
 """
 import sqlite3
 import sys
@@ -44,51 +45,72 @@ BASE = Path(__file__).parent
 
 CONFIG_PATH = BASE / "config.txt"
 CONFIG_TEMPLATE = """\
-# CarryRep settings. One "key = value" per line. Lines starting with # are comments.
+# CarryRep settings. "key = value" per line. Lines starting with # are comments.
+# [common] applies to every bot; a game section can override any of these keys for that bot.
 
-# Bot token (Discord Developer Portal > your app > Bot > Reset Token). Required.
-token =
-
-# Game this bot serves: d4 (Diablo IV), poe2 (Path of Exile 2), wow (World of Warcraft),
-# or any other id for generic wording.
-game = d4
-
-# Display name of the game. Empty = the name of the game above (Diablo IV for d4).
-game_name =
-
-# Test server ID: slash commands appear there instantly. Empty = none.
-guild =
-
-# Reviewer's Discord account must be at least this many days old. Use 0 only for testing.
+[common]
+# Reviewer's Discord account must be at least this many days old (not checked in the test server).
 min_account_days = 30
 
-# Maximum new reviews per reviewer per 24 hours.
+# Maximum new reviews per reviewer per 24 hours (per game).
 daily_review_limit = 10
 
 # Link shown at the bottom of reputation cards, e.g. the GitHub repository. Empty = none.
 project_url =
+
+# HTTP proxy for reaching Discord, e.g. http://127.0.0.1:7890 (the local HTTP port of your VPN client).
+# Empty = connect directly.
+proxy =
+
+# One section per game bot. The section name is the game id passed to bot.py / used in run_<id>.bat.
+# Built-in ids: d4 (Diablo IV), poe2 (Path of Exile 2), wow (World of Warcraft);
+# any other id works with generic wording (set game_name).
+[d4]
+# Bot token of this game's Discord application (Developer Portal > your app > Bot > Reset Token).
+token =
+# Display name of the game. Empty = built-in name (Diablo IV for d4).
+game_name =
+# Test server ID: slash commands appear there instantly; there you can also review yourself and
+# min_account_days does not apply (for testing and demos). Empty = none.
+guild =
 """
 
 
 def read_config():
-    """Parse config.txt into a dict. Creates it from CONFIG_TEMPLATE if it does not exist."""
+    """Parse config.txt into {section: {key: value}}. Keys before any [section] count as [common].
+    Creates config.txt from CONFIG_TEMPLATE if it does not exist."""
     if not CONFIG_PATH.exists():
         CONFIG_PATH.write_text(CONFIG_TEMPLATE, encoding="utf-8")
-    conf = {}
+    sections, current = {"common": {}}, "common"
     for line in CONFIG_PATH.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+        if not line or line.startswith("#"):
             continue
-        key, value = line.split("=", 1)
-        conf[key.strip().lower()] = value.strip()
-    return conf
+        if line.startswith("[") and line.endswith("]"):
+            current = line[1:-1].strip().lower()
+            sections.setdefault(current, {})
+        elif "=" in line:
+            key, value = line.split("=", 1)
+            sections[current][key.strip().lower()] = value.strip()
+    # Old single-bot config.txt (no sections): its bot keys belong to that one game (default d4).
+    if len(sections) == 1:
+        common = sections["common"]
+        sections[(common.get("game") or "d4").lower()] = {
+            k: common.pop(k) for k in ("token", "guild", "game_name") if k in common}
+    return sections
 
 
-CONF = read_config()
+CONF_ALL = read_config()
+# Game id: first command-line argument (python bot.py d4). Default d4.
+GAME = (sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "d4").strip().lower()
+CONF = {**CONF_ALL.get("common", {}), **CONF_ALL.get(GAME, {})}
+BOT_ONLY = ("token", "guild", "game_name")  # never inherited from [common]: each bot has its own
 
 
 def cfg(key, default=None):
-    """Setting from config.txt, or default if the key is missing or empty."""
+    """Setting for this bot: its game section first, then [common]; default if missing or empty."""
+    if key in BOT_ONLY:
+        return CONF_ALL.get(GAME, {}).get(key) or default
     return CONF.get(key) or default
 
 
@@ -98,42 +120,72 @@ DEV_GUILD_ID = cfg("guild")
 MIN_ACCOUNT_DAYS = int(cfg("min_account_days", "30"))
 DAILY_REVIEW_LIMIT = int(cfg("daily_review_limit", "10"))
 PROJECT_URL = cfg("project_url", "")
-GAME = cfg("game", "d4").lower()
+PROXY = cfg("proxy")
 
 # ---------------------------------------------------------------- storage
 NOW = "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+# Every row carries the game id, so all game bots can share this one database.
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS boosters (
-  user_id TEXT PRIMARY KEY, username TEXT,
+  game TEXT NOT NULL, user_id TEXT NOT NULL, username TEXT,
   services TEXT NOT NULL, platform TEXT, contact TEXT, note TEXT,
   reg_guild_id TEXT,                         -- server where they first registered ('' = DM / user install)
-  created_at TEXT NOT NULL DEFAULT ({NOW}), updated_at TEXT);
+  created_at TEXT NOT NULL DEFAULT ({NOW}), updated_at TEXT,
+  PRIMARY KEY(game, user_id));
 CREATE TABLE IF NOT EXISTS reviews (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY, game TEXT NOT NULL,
   reviewer_id TEXT NOT NULL, booster_id TEXT NOT NULL,
   rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), comment TEXT,
   guild_id TEXT,                             -- server where the review was written
   created_at TEXT NOT NULL DEFAULT ({NOW}), updated_at TEXT,
-  UNIQUE(reviewer_id, booster_id));
+  UNIQUE(game, reviewer_id, booster_id));
 CREATE TABLE IF NOT EXISTS events (           -- for measuring the experiment
-  id INTEGER PRIMARY KEY, ts TEXT NOT NULL DEFAULT ({NOW}),
+  id INTEGER PRIMARY KEY, ts TEXT NOT NULL DEFAULT ({NOW}), game TEXT,
   name TEXT NOT NULL, user_id TEXT, guild_id TEXT, detail TEXT);
-CREATE TABLE IF NOT EXISTS guilds (           -- servers that installed the bot
-  guild_id TEXT PRIMARY KEY, name TEXT, member_count INTEGER,
-  joined_at TEXT NOT NULL DEFAULT ({NOW}), left_at TEXT);
+CREATE TABLE IF NOT EXISTS guilds (           -- servers that installed a game's bot
+  game TEXT NOT NULL, guild_id TEXT NOT NULL, name TEXT, member_count INTEGER,
+  joined_at TEXT NOT NULL DEFAULT ({NOW}), left_at TEXT,
+  PRIMARY KEY(game, guild_id));
 """
+# Older single-game databases (no game column) are converted once; their rows become game 'd4'.
+OLD_COLUMNS = {
+    "boosters": "user_id,username,services,platform,contact,note,reg_guild_id,created_at,updated_at",
+    "reviews": "id,reviewer_id,booster_id,rating,comment,guild_id,created_at,updated_at",
+    "events": "id,ts,name,user_id,guild_id,detail",
+    "guilds": "guild_id,name,member_count,joined_at,left_at",
+}
 
 
 def db():
-    con = sqlite3.connect(DB_PATH, timeout=10)
+    con = sqlite3.connect(DB_PATH, timeout=30)
     con.execute("PRAGMA journal_mode=WAL")
-    con.execute("PRAGMA foreign_keys=ON")
+    con.execute("PRAGMA busy_timeout=30000")  # several bots write to the same file
     return con
 
 
 def init_db():
-    with db() as c:
-        c.executescript(SCHEMA)
+    con = db()
+    con.isolation_level = None
+    con.execute("BEGIN IMMEDIATE")  # only one bot creates or converts the tables at a time
+    try:
+        old = [tbl for tbl in OLD_COLUMNS
+               if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (tbl,)).fetchone()
+               and "game" not in [r[1] for r in con.execute(f"PRAGMA table_info({tbl})")]]
+        for tbl in old:
+            con.execute(f"ALTER TABLE {tbl} RENAME TO {tbl}_old")
+        for stmt in SCHEMA.split(";"):
+            if stmt.strip():
+                con.execute(stmt)
+        for tbl in old:
+            cols = OLD_COLUMNS[tbl]
+            con.execute(f"INSERT INTO {tbl}({cols},game) SELECT {cols},'d4' FROM {tbl}_old")
+            con.execute(f"DROP TABLE {tbl}_old")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    finally:
+        con.close()
 
 
 init_db()
@@ -142,8 +194,8 @@ init_db()
 def log_event(name, user_id=None, guild_id=None, detail=None):
     try:
         with db() as c:
-            c.execute("INSERT INTO events(name,user_id,guild_id,detail) VALUES(?,?,?,?)",
-                      (name, str(user_id) if user_id else None, str(guild_id or ""), detail))
+            c.execute("INSERT INTO events(game,name,user_id,guild_id,detail) VALUES(?,?,?,?,?)",
+                      (GAME, name, str(user_id) if user_id else None, str(guild_id or ""), detail))
     except Exception as e:  # measurement must never break the user flow
         print("[event] failed:", e)
 
@@ -151,36 +203,43 @@ def log_event(name, user_id=None, guild_id=None, detail=None):
 def get_booster(user_id):
     with db() as c:
         c.row_factory = sqlite3.Row
-        return c.execute("SELECT * FROM boosters WHERE user_id=?", (str(user_id),)).fetchone()
+        return c.execute("SELECT * FROM boosters WHERE game=? AND user_id=?", (GAME, str(user_id))).fetchone()
 
 
 def register_booster(user_id, username, guild_id, services, platform, contact, note):
     with db() as c:
         c.execute(f"""
-          INSERT INTO boosters(user_id,username,services,platform,contact,note,reg_guild_id)
-          VALUES(?,?,?,?,?,?,?)
-          ON CONFLICT(user_id) DO UPDATE SET updated_at={NOW}, username=excluded.username,
+          INSERT INTO boosters(game,user_id,username,services,platform,contact,note,reg_guild_id)
+          VALUES(?,?,?,?,?,?,?,?)
+          ON CONFLICT(game,user_id) DO UPDATE SET updated_at={NOW}, username=excluded.username,
             services=excluded.services, platform=excluded.platform,
             contact=excluded.contact, note=excluded.note""",
-                  (str(user_id), username, services, platform, contact, note, str(guild_id or "")))
+                  (GAME, str(user_id), username, services, platform, contact, note, str(guild_id or "")))
 
 
-def review_blocker(reviewer_id, booster_id, reviewer_age_days):
+def in_test_server(guild_id):
+    """True inside this bot's test server (guild in config.txt). There, for testing and demos,
+    you may review yourself and the minimum account age does not apply."""
+    return bool(DEV_GUILD_ID) and str(guild_id or "") == str(DEV_GUILD_ID)
+
+
+def review_blocker(reviewer_id, booster_id, reviewer_age_days, guild_id=None):
     """Why this reviewer can't review this booster right now (self | young | not_booster | limit), or None."""
     reviewer_id, booster_id = str(reviewer_id), str(booster_id)
-    if reviewer_id == booster_id:
+    test = in_test_server(guild_id)
+    if reviewer_id == booster_id and not test:
         return "self"
-    if reviewer_age_days < MIN_ACCOUNT_DAYS:
+    if reviewer_age_days < MIN_ACCOUNT_DAYS and not test:
         return "young"
     if not get_booster(booster_id):
         return "not_booster"
     with db() as c:
-        exists = c.execute("SELECT 1 FROM reviews WHERE reviewer_id=? AND booster_id=?",
-                           (reviewer_id, booster_id)).fetchone()
+        exists = c.execute("SELECT 1 FROM reviews WHERE game=? AND reviewer_id=? AND booster_id=?",
+                           (GAME, reviewer_id, booster_id)).fetchone()
         if not exists:  # updating an existing review never counts against the daily limit
-            recent = c.execute("SELECT COUNT(*) FROM reviews WHERE reviewer_id=? AND "
+            recent = c.execute("SELECT COUNT(*) FROM reviews WHERE game=? AND reviewer_id=? AND "
                                "created_at >= strftime('%Y-%m-%dT%H:%M:%SZ','now','-1 day')",
-                               (reviewer_id,)).fetchone()[0]
+                               (GAME, reviewer_id)).fetchone()[0]
             if recent >= DAILY_REVIEW_LIMIT:
                 return "limit"
     return None
@@ -191,17 +250,17 @@ def add_review(reviewer_id, booster_id, rating, comment, guild_id, reviewer_age_
     reviewer_id, booster_id = str(reviewer_id), str(booster_id)
     if not 1 <= int(rating) <= 5:
         return "rating"
-    blocker = review_blocker(reviewer_id, booster_id, reviewer_age_days)
+    blocker = review_blocker(reviewer_id, booster_id, reviewer_age_days, guild_id)
     if blocker:
         return blocker
     with db() as c:
-        exists = c.execute("SELECT 1 FROM reviews WHERE reviewer_id=? AND booster_id=?",
-                           (reviewer_id, booster_id)).fetchone()
+        exists = c.execute("SELECT 1 FROM reviews WHERE game=? AND reviewer_id=? AND booster_id=?",
+                           (GAME, reviewer_id, booster_id)).fetchone()
         c.execute(f"""
-          INSERT INTO reviews(reviewer_id,booster_id,rating,comment,guild_id) VALUES(?,?,?,?,?)
-          ON CONFLICT(reviewer_id,booster_id) DO UPDATE SET updated_at={NOW},
+          INSERT INTO reviews(game,reviewer_id,booster_id,rating,comment,guild_id) VALUES(?,?,?,?,?,?)
+          ON CONFLICT(game,reviewer_id,booster_id) DO UPDATE SET updated_at={NOW},
             rating=excluded.rating, comment=excluded.comment, guild_id=excluded.guild_id""",
-                  (reviewer_id, booster_id, int(rating), (comment or "").strip()[:200], str(guild_id or "")))
+                  (GAME, reviewer_id, booster_id, int(rating), (comment or "").strip()[:200], str(guild_id or "")))
     return "updated" if exists else "saved"
 
 
@@ -211,17 +270,20 @@ def card_data(booster_id):
         return None
     with db() as c:
         n, avg, servers = c.execute(
-            "SELECT COUNT(*), AVG(rating), COUNT(DISTINCT NULLIF(guild_id,'')) FROM reviews WHERE booster_id=?",
-            (str(booster_id),)).fetchone()
+            "SELECT COUNT(*), AVG(rating), COUNT(DISTINCT NULLIF(guild_id,'')) FROM reviews "
+            "WHERE game=? AND booster_id=?", (GAME, str(booster_id))).fetchone()
         recent = c.execute(
             "SELECT reviewer_id, rating, comment, COALESCE(updated_at, created_at) AS ts FROM reviews "
-            "WHERE booster_id=? AND rating>=4 AND comment<>'' ORDER BY ts DESC LIMIT 3",
-            (str(booster_id),)).fetchall()
-    return {"booster": b, "n": n, "avg": avg, "servers": servers, "recent": recent}
+            "WHERE game=? AND booster_id=? AND rating>=4 AND comment<>'' ORDER BY ts DESC LIMIT 3",
+            (GAME, str(booster_id))).fetchall()
+        other = c.execute(  # the same booster's ratings in the other games' bots
+            "SELECT game, COUNT(*), AVG(rating) FROM reviews WHERE game<>? AND booster_id=? "
+            "GROUP BY game ORDER BY COUNT(*) DESC", (GAME, str(booster_id))).fetchall()
+    return {"booster": b, "n": n, "avg": avg, "servers": servers, "recent": recent, "other": other}
 
 
 def delete_user(user_id):
-    """Erase everything tied to this Discord user. Returns number of rows removed."""
+    """Erase everything tied to this Discord user, in every game. Returns number of rows removed."""
     u = str(user_id)
     with db() as c:
         n = c.execute("DELETE FROM boosters WHERE user_id=?", (u,)).rowcount
@@ -275,6 +337,12 @@ GAMES = {
 }
 GAME_CFG = GAMES.get(GAME, GAMES["_generic"])
 GAME_NAME = cfg("game_name") or GAME_CFG["name"] or GAME.upper()
+
+
+def game_display(game_id):
+    """Display name of any game id: its section's game_name, the built-in name, or the id itself."""
+    return (CONF_ALL.get(game_id, {}).get("game_name") or GAMES.get(game_id, {}).get("name")
+            or game_id.upper())
 
 T = {
     "panel_title": {
@@ -398,6 +466,8 @@ T = {
                       "es": "Plataforma / región", "pt": "Plataforma / região"},
     "card_contact": {"en": "Where to find them", "fr": "Où le trouver", "de": "Wo zu finden",
                      "es": "Dónde encontrarlo", "pt": "Onde encontrar"},
+    "card_other": {"en": "Other games", "fr": "Autres jeux", "de": "Andere Spiele",
+                   "es": "Otros juegos", "pt": "Outros jogos"},
     "card_recent": {"en": "Recent vouches", "fr": "Derniers avis", "de": "Neueste Bewertungen",
                     "es": "Valoraciones recientes", "pt": "Avaliações recentes"},
     "card_footer": {"en": "One review per buyer · reviewer accounts ≥ {days} days old",
@@ -405,11 +475,11 @@ T = {
                     "de": "Eine Bewertung pro Käufer · Konten ab {days} Tagen",
                     "es": "Una valoración por comprador · cuentas de al menos {days} días",
                     "pt": "Uma avaliação por comprador · contas com pelo menos {days} dias"},
-    "confirm_delete": {"en": "This erases your booster registration, the reviews you received and the reviews you gave. Continue?",
-                       "fr": "Cela efface ton inscription, les avis reçus et les avis donnés. Continuer ?",
-                       "de": "Das löscht deine Registrierung, erhaltene und abgegebene Bewertungen. Fortfahren?",
-                       "es": "Esto borra tu registro, las valoraciones recibidas y las que diste. ¿Continuar?",
-                       "pt": "Isso apaga seu registro, as avaliações recebidas e as que você deu. Continuar?"},
+    "confirm_delete": {"en": "This erases, in every game, your booster registration, the reviews you received and the reviews you gave. Continue?",
+                       "fr": "Cela efface, dans tous les jeux, ton inscription, les avis reçus et les avis donnés. Continuer ?",
+                       "de": "Das löscht in allen Spielen deine Registrierung, erhaltene und abgegebene Bewertungen. Fortfahren?",
+                       "es": "Esto borra, en todos los juegos, tu registro, las valoraciones recibidas y las que diste. ¿Continuar?",
+                       "pt": "Isso apaga, em todos os jogos, seu registro, as avaliações recebidas e as que você deu. Continuar?"},
     "btn_confirm": {"en": "Yes, delete everything", "fr": "Oui, tout supprimer", "de": "Ja, alles löschen",
                     "es": "Sí, borrar todo", "pt": "Sim, apagar tudo"},
     "deleted": {"en": "Done: {n} record(s) deleted.", "fr": "C'est fait : {n} élément(s) supprimé(s).",
@@ -515,6 +585,9 @@ def card_embed(user: discord.abc.User, lang):
     if d["recent"]:
         lines = [f"{stars(r)} <@{rid}> · {ts[:10]}\n“{c}”" for rid, r, c, ts in d["recent"]]
         e.add_field(name=t("card_recent", lang), value="\n".join(lines)[:1024], inline=False)
+    if d["other"]:
+        lines = [f"{game_display(g)}: {avg:.1f} ★ ({n})" for g, n, avg in d["other"]]
+        e.add_field(name=t("card_other", lang), value="\n".join(lines)[:1024], inline=False)
     footer = t("card_footer", lang, days=MIN_ACCOUNT_DAYS)
     e.set_footer(text=f"{footer} · {PROJECT_URL}" if PROJECT_URL else footer)
     return e
@@ -531,7 +604,7 @@ async def start_vouch(it: discord.Interaction, target: discord.abc.User, edit=Fa
     """Step 1 of a review: check the reviewer may review this booster, then show 1-5 star buttons.
     edit=True replaces the member-picker message (panel flow) instead of sending a new one."""
     lang = lang_of(it.locale)
-    blocker = review_blocker(it.user.id, target.id, age_days(it.user))
+    blocker = review_blocker(it.user.id, target.id, age_days(it.user), it.guild_id)
     if blocker:
         log_event(f"vouch_{blocker}", it.user.id, it.guild_id, str(target.id))
         content, view = error_text(blocker, lang, target), None
@@ -597,14 +670,13 @@ class RegisterForm(discord.ui.Modal):
 
 
 class StarPicker(discord.ui.View):
-    """Step 2 of a review: five buttons, one to five stars. A click opens the comment form."""
+    """Step 2 of a review: five grey buttons "1 ★" ... "5 ★". A click opens the comment form."""
 
     def __init__(self, target: discord.abc.User):
         super().__init__(timeout=300)
         self.target = target
         for n in range(1, 6):
-            button = discord.ui.Button(label="★" * n, row=0,
-                                       style=discord.ButtonStyle.success if n >= 4 else discord.ButtonStyle.secondary)
+            button = discord.ui.Button(label=f"{n} ★", row=0, style=discord.ButtonStyle.secondary)
             button.callback = self.make_callback(n)
             self.add_item(button)
 
@@ -699,7 +771,8 @@ class Panel(discord.ui.View):
 # ---------------------------------------------------------------- bot
 class Bot(discord.Client):
     def __init__(self):
-        super().__init__(intents=discord.Intents.default())  # no privileged intents needed
+        # no privileged intents needed; proxy (if set) is used for both the API and the gateway connection
+        super().__init__(intents=discord.Intents.default(), proxy=PROXY)
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
@@ -714,20 +787,20 @@ class Bot(discord.Client):
         print(f"[bot] logged in as {self.user} · game={GAME_NAME} · in {len(self.guilds)} server(s) · db={DB_PATH}")
         with db() as c:  # servers joined while the bot was offline
             for g in self.guilds:
-                c.execute("INSERT OR IGNORE INTO guilds(guild_id,name,member_count) VALUES(?,?,?)",
-                          (str(g.id), g.name, g.member_count))
+                c.execute("INSERT OR IGNORE INTO guilds(game,guild_id,name,member_count) VALUES(?,?,?,?)",
+                          (GAME, str(g.id), g.name, g.member_count))
 
     async def on_guild_join(self, g: discord.Guild):
         with db() as c:
-            c.execute("""INSERT INTO guilds(guild_id,name,member_count) VALUES(?,?,?)
-                         ON CONFLICT(guild_id) DO UPDATE SET name=excluded.name,
+            c.execute("""INSERT INTO guilds(game,guild_id,name,member_count) VALUES(?,?,?,?)
+                         ON CONFLICT(game,guild_id) DO UPDATE SET name=excluded.name,
                            member_count=excluded.member_count, left_at=NULL""",
-                      (str(g.id), g.name, g.member_count))
+                      (GAME, str(g.id), g.name, g.member_count))
         log_event("guild_join", None, g.id, g.name)
 
     async def on_guild_remove(self, g: discord.Guild):
         with db() as c:
-            c.execute(f"UPDATE guilds SET left_at={NOW} WHERE guild_id=?", (str(g.id),))
+            c.execute(f"UPDATE guilds SET left_at={NOW} WHERE game=? AND guild_id=?", (GAME, str(g.id)))
         log_event("guild_leave", None, g.id, g.name)
 
 
@@ -806,18 +879,18 @@ async def panel_cmd(it: discord.Interaction, language: app_commands.Choice[str] 
 async def stats_cmd(it: discord.Interaction):
     g = str(it.guild_id)
     with db() as c:
-        reg = c.execute("SELECT COUNT(*) FROM boosters WHERE reg_guild_id=?", (g,)).fetchone()[0]
-        rev = c.execute("SELECT COUNT(*) FROM reviews WHERE guild_id=?", (g,)).fetchone()[0]
-        look = c.execute("SELECT COUNT(*) FROM events WHERE name IN ('lookup','myrep') AND guild_id=?",
-                         (g,)).fetchone()[0]
-        clicks = c.execute("SELECT COUNT(DISTINCT user_id) FROM events WHERE name LIKE 'click_%' AND guild_id=?",
-                           (g,)).fetchone()[0]
+        reg = c.execute("SELECT COUNT(*) FROM boosters WHERE game=? AND reg_guild_id=?", (GAME, g)).fetchone()[0]
+        rev = c.execute("SELECT COUNT(*) FROM reviews WHERE game=? AND guild_id=?", (GAME, g)).fetchone()[0]
+        look = c.execute("SELECT COUNT(*) FROM events WHERE game=? AND name IN ('lookup','myrep') AND guild_id=?",
+                         (GAME, g)).fetchone()[0]
+        clicks = c.execute("SELECT COUNT(DISTINCT user_id) FROM events WHERE game=? AND name LIKE 'click_%' "
+                           "AND guild_id=?", (GAME, g)).fetchone()[0]
     await it.response.send_message(t("stats", lang_of(it.locale), reg=reg, rev=rev, look=look, clicks=clicks),
                                    ephemeral=True)
 
 
 class Tee:
-    """Writes to the console and to logs/bot.log at the same time."""
+    """Writes to the console and to logs/bot-<game>.log at the same time."""
 
     def __init__(self, stream, logfile):
         self.stream, self.logfile = stream, logfile
@@ -844,15 +917,20 @@ class Tee:
 
 if __name__ == "__main__":
     (BASE / "logs").mkdir(exist_ok=True)
-    log = open(BASE / "logs" / "bot.log", "a", encoding="utf-8")
+    log = open(BASE / "logs" / f"bot-{GAME}.log", "a", encoding="utf-8")
     sys.stdout, sys.stderr = Tee(sys.__stdout__, log), Tee(sys.__stderr__, log)
-    print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] starting · game={GAME_NAME} · config={CONFIG_PATH}")
+    print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] starting · game={GAME_NAME} · config={CONFIG_PATH}"
+          + (f" · proxy={PROXY}" if PROXY else ""))
+    if DEV_GUILD_ID:
+        print(f"test server {DEV_GUILD_ID}: self-reviews allowed and no minimum account age there (testing/demos)")
     if not TOKEN:
-        print(f"Fill in the token in {CONFIG_PATH} (Discord Developer Portal > your app > Bot > Reset Token).")
+        print(f"Fill in the token under [{GAME}] in {CONFIG_PATH} "
+              f"(Discord Developer Portal > your app > Bot > Reset Token).")
         sys.exit(2)  # exit code 2 = configuration problem: run_bot.bat stops instead of retrying
     print("connecting to Discord ...")
     try:
         bot.run(TOKEN)
     except discord.LoginFailure:
-        print(f"Discord rejected the token. Copy a fresh one into {CONFIG_PATH} (Developer Portal > Bot > Reset Token).")
+        print(f"Discord rejected the [{GAME}] token. Copy a fresh one into {CONFIG_PATH} "
+              f"(Developer Portal > Bot > Reset Token).")
         sys.exit(2)
