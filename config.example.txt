@@ -26,3 +26,5 @@ game_name =
 # Test server ID: slash commands appear there instantly; there you can also review yourself and
 # min_account_days does not apply (for testing and demos). Empty = none.
 guild =
+# Upvote page of this bot on a bot list, shown at the end of /help. Empty = none.
+vote_url =

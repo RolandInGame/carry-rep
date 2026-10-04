@@ -55,6 +55,7 @@ guild =
 | `token` | game | this game's bot token | required |
 | `game_name` | game | display name of the game | built-in name |
 | `guild` | game | test server ID: commands appear there instantly; self-reviews allowed and no minimum account age there (testing/demos) | empty |
+| `vote_url` | game | upvote page on a bot list, shown at the end of `/help` | empty |
 
 A game section may also override any `[common]` key for that bot only. `token`, `game_name` and `guild` are never taken from `[common]`. An old `config.txt` without sections still works: it is treated as the `[d4]` bot.
 

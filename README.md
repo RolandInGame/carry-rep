@@ -58,6 +58,7 @@ All settings live in `config.txt` next to `bot.py`: a `[common]` section shared 
 | `token` | game | that game's bot token | required |
 | `game_name` | game | display name of the game | built-in name |
 | `guild` | game | test server ID: commands appear there instantly; self-reviews allowed and no minimum account age there (testing/demos) | empty |
+| `vote_url` | game | upvote page on a bot list, shown at the end of `/help` | empty |
 
 A game section can also override any `[common]` key for that bot. Data for all games is stored in `data.db` next to `bot.py`.
 

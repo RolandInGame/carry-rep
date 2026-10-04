@@ -73,6 +73,8 @@ game_name =
 # Test server ID: slash commands appear there instantly; there you can also review yourself and
 # min_account_days does not apply (for testing and demos). Empty = none.
 guild =
+# Upvote page of this bot on a bot list, shown at the end of /help. Empty = none.
+vote_url =
 """
 
 
@@ -104,7 +106,7 @@ CONF_ALL = read_config()
 # Game id: first command-line argument (python bot.py d4). Default d4.
 GAME = (sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "d4").strip().lower()
 CONF = {**CONF_ALL.get("common", {}), **CONF_ALL.get(GAME, {})}
-BOT_ONLY = ("token", "guild", "game_name")  # never inherited from [common]: each bot has its own
+BOT_ONLY = ("token", "guild", "game_name", "vote_url")  # never inherited from [common]: each bot has its own
 
 
 def cfg(key, default=None):
@@ -120,6 +122,7 @@ DEV_GUILD_ID = cfg("guild")
 MIN_ACCOUNT_DAYS = int(cfg("min_account_days", "30"))
 DAILY_REVIEW_LIMIT = int(cfg("daily_review_limit", "10"))
 PROJECT_URL = cfg("project_url", "")
+VOTE_URL = cfg("vote_url", "")
 PROXY = cfg("proxy")
 
 # ---------------------------------------------------------------- storage
@@ -514,6 +517,9 @@ T = {
               "1. Aperte o botão abaixo e escolha **Adicionar aos meus apps** (ou adicione ao seu servidor).\n"
               "2. Use `/register`.\n"
               "3. Depois de cada pedido, poste `/myrep` e peça ao comprador para apertar **Avaliar**."},
+    "help_vote": {"en": "Like it? Upvote it: {url}", "fr": "Ça te plaît ? Vote pour lui : {url}",
+                  "de": "Gefällt's dir? Stimm dafür ab: {url}", "es": "¿Te gusta? Vota por él: {url}",
+                  "pt": "Curtiu? Vote nele: {url}"},
     "posted": {"en": "Panel posted.", "fr": "Panneau publié.", "de": "Panel veröffentlicht.",
                "es": "Panel publicado.", "pt": "Painel publicado."},
     "help": {
@@ -942,7 +948,9 @@ async def delete_cmd(it: discord.Interaction):
 @bot.tree.command(name="help", description="How this reputation bot works")
 @apply(everywhere)
 async def help_cmd(it: discord.Interaction):
-    await it.response.send_message(t("help", lang_of(it.locale)), ephemeral=True)
+    lang = lang_of(it.locale)
+    text = t("help", lang) + (f"\n{t('help_vote', lang, url=f'<{VOTE_URL}>')}" if VOTE_URL else "")
+    await it.response.send_message(text, ephemeral=True)
 
 
 @bot.tree.command(name="panel", description="Post the reputation panel in this channel")
