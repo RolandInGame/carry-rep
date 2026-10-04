@@ -11,6 +11,10 @@ Each game gets its own bot (Diablo IV built in; see [Games](#games)); all bots r
 
 No web page, no payments, no direct messages. Languages: English, French, German, Spanish, Portuguese (follows each user's Discord language).
 
+## Demo
+
+![CarryRep demo: register, review with 1–5 stars, post your card](docs/demo.gif)
+
 ## Commands
 
 | Command | Who | What it does |
