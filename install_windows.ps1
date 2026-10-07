@@ -1,9 +1,10 @@
 # Registers Windows scheduled tasks for this folder:
-#   CarryRep-<game id>  - one per run_<game id>.bat: runs that game's bot at every boot, even when nobody is logged in
-#   CarryRep-Backup     - backs up the shared data.db every day at 04:00
-# Run once in PowerShell as Administrator (run it again after adding a game):
+#   CarryRep         - runs every bot listed in "games" in config.txt at each boot, even when nobody is logged in
+#   CarryRep-Backup  - backs up the shared data.db every day at 04:00
+# Adding a game needs no change here: add it to "games" in config.txt and restart the CarryRep task.
+# Run once in PowerShell as Administrator:
 #   powershell -ExecutionPolicy Bypass -File install_windows.ps1
-# Remove a task later with:  Unregister-ScheduledTask CarryRep-d4
+# Remove the tasks later with:  Unregister-ScheduledTask CarryRep; Unregister-ScheduledTask CarryRep-Backup
 
 $ErrorActionPreference = "Stop"
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -14,23 +15,25 @@ if ($python -like "*WindowsApps*") { throw "PATH points to the Microsoft Store p
 Set-Content -Path "$dir\python.txt" -Value $python -NoNewline   # the tasks use this exact python
 if (-not (Test-Path "$dir\config.txt")) { throw "Create config.txt first (copy config.example.txt and fill in the tokens)." }
 
-$games = Get-ChildItem "$dir\run_*.bat" | Where-Object { $_.Name -ne "run_bot.bat" } |
-  ForEach-Object { $_.BaseName.Substring(4) }
-if (-not $games) { throw "No run_<game id>.bat files found." }
-
 # S4U = run whether the user is logged on or not, without storing a password (internet access works)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) `
   -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
 
-foreach ($g in $games) {
-  $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$dir\run_bot.bat`" $g" -WorkingDirectory $dir
-  Register-ScheduledTask -TaskName "CarryRep-$g" -Action $action -Principal $principal -Settings $settings `
-    -Trigger (New-ScheduledTaskTrigger -AtStartup) -Force | Out-Null
-  Start-ScheduledTask -TaskName "CarryRep-$g"
-  Write-Host "Task CarryRep-$g registered and started; log: $dir\logs\bot-$g.log"
-}
+# Replaced by the single CarryRep task below; leaving them would start each bot twice.
+Get-ScheduledTask -TaskName "CarryRep-*" -ErrorAction SilentlyContinue |
+  Where-Object { $_.TaskName -ne "CarryRep-Backup" } |
+  ForEach-Object {
+    Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
+    Write-Host "Removed the old task $($_.TaskName)."
+  }
+
+$action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$dir\run_bot.bat`"" -WorkingDirectory $dir
+Register-ScheduledTask -TaskName "CarryRep" -Action $action -Principal $principal -Settings $settings `
+  -Trigger (New-ScheduledTaskTrigger -AtStartup) -Force | Out-Null
+Start-ScheduledTask -TaskName "CarryRep"
+Write-Host "Task CarryRep registered and started; logs: $dir\logs\bot-<game id>.log"
 
 $bk = New-ScheduledTaskAction -Execute $python -Argument "`"$dir\backup.py`"" -WorkingDirectory $dir
 Register-ScheduledTask -TaskName "CarryRep-Backup" -Action $bk -Principal $principal -Settings $settings `

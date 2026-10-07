@@ -2,6 +2,11 @@
 # [common] applies to every bot; a game section can override any of these keys for that bot.
 
 [common]
+# Which bots run_bot.bat starts when you double-click it (one window for all of them).
+# Comma-separated game ids, each needing its own section further down.
+# Empty = every game section below that has a token filled in.
+games = d4, wow, poe2
+
 # Reviewer's Discord account must be at least this many days old (not checked in the test server).
 min_account_days = 30
 

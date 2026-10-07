@@ -5,7 +5,7 @@ Step-by-step instructions for running CarryRep. See `README.md` for what the bot
 ## How it is organised
 
 - **One folder, one database.** All game bots run from the same folder and share `data.db`. Every row records its game, so `rep_export.py` can show all games together, and a booster's card also lists their ratings in the other games.
-- **One bot per game.** Each game has its own Discord application (own name, own token, own Install Link) and its own start script, e.g. `run_d4.bat`.
+- **One bot per game.** Each game has its own Discord application (own name, own token, own Install Link) and runs as its own process. `run_bot.bat` starts all of them together in one window; `run_d4.bat` and friends start a single game when you want to look at one on its own.
 - **One settings file.** `config.txt` has a `[common]` section for shared settings and one `[<game id>]` section per bot.
 
 | Game id | Game |
@@ -69,8 +69,8 @@ A game section may also override any `[common]` key for that bot only. `token`, 
    [poe2]
    token = <Path of Exile 2 bot token>
    ```
-3. Copy `run_d4.bat` to `run_poe2.bat` and change `d4` to `poe2` inside it.
-4. Start it with `run_poe2.bat` (or `python bot.py poe2`). On an always-on Windows PC, run `install_windows.ps1` again so it gets its own startup task.
+3. Add the new id to `games` under `[common]` in `config.txt`, e.g. `games = d4, wow, poe2`.
+4. Start everything with `run_bot.bat`. To run only the new game, use `run_bot.bat poe2` (or copy `run_d4.bat` to `run_poe2.bat` and change `d4` inside).
 
 ## Test run (macOS / Linux)
 
@@ -92,7 +92,7 @@ No public IP is needed, only an internet connection.
 1. Install Python 3.10 or newer from python.org and tick **Add python.exe to PATH**. Do not use the Microsoft Store version.
 2. Copy the folder to the PC, e.g. `C:\carry-rep`, and run `python -m pip install -r requirements.txt` inside it.
 3. Copy `config.example.txt` to `config.txt` and fill in the tokens (see above).
-4. Double-click `run_d4.bat` for a trial run. The window shows the bot's output (also saved in `logs\bot-d4.log`). When it shows `[bot] logged in as ...`, the bot is online; close the window to stop it. If the token is missing or wrong, the window says so and waits. Each game runs in its own window.
+4. Double-click `run_bot.bat` for a trial run. One window starts every game listed in `games` and prefixes each line with the game id; each bot also keeps its own `logs\bot-<game id>.log`. When a bot shows `[bot] logged in as ...`, it is online. Ctrl+C or closing the window stops them all. A bot that stops on its own is restarted after 30 s; one with a missing or wrong token says so and stays stopped while the others keep running. To watch a single game on its own, use `run_d4.bat`.
 5. Open PowerShell as Administrator, go to the folder and run:
    ```
    powershell -ExecutionPolicy Bypass -File install_windows.ps1

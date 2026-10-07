@@ -47,7 +47,8 @@ Requires Python 3.10+.
 ```bash
 pip install -r requirements.txt
 cp config.example.txt config.txt   # then fill in the token under [d4]
-python bot.py d4                   # on Windows: double-click run_d4.bat
+python run_all.py                 # every game in "games"; on Windows: double-click run_bot.bat
+python bot.py d4                  # one game only; on Windows: run_d4.bat
 ```
 
 ### Configuration
@@ -78,7 +79,7 @@ A game section can also override any `[common]` key for that bot. Data for all g
 | `wow` | World of Warcraft |
 | anything else | generic wording; set `game_name`, e.g. `[lastepoch]` with `game_name = Last Epoch` |
 
-To add a game: create a separate Discord application for it, add a `[<game id>]` section with its token to `config.txt`, and copy `run_d4.bat` to `run_<game id>.bat` (change `d4` inside). Each bot is a separate process and Discord connection.
+To add a game: create a separate Discord application for it, add a `[<game id>]` section with its token to `config.txt`, and add the id to `games` under `[common]`. Each bot is a separate process and Discord connection; `run_all.py` (`run_bot.bat` on Windows) starts them all in one window, prefixes their output with the game id, and restarts any that stop.
 
 ### Discord Developer Portal
 

@@ -1,25 +1,38 @@
 @echo off
-rem Runs one game's bot:  run_bot.bat <game id>   e.g. run_bot.bat d4
-rem Normally started by run_<game id>.bat (double-click) or by the scheduled task from install_windows.ps1.
-rem Restarts the bot 30 s after a crash. Settings: config.txt. Output is shown here and saved in logs\bot-<game id>.log.
+rem Double-click this file to run every bot listed in "games" in config.txt, all in this one window.
+rem   run_bot.bat            -> every game in "games"
+rem   run_bot.bat d4         -> only that game (same as double-clicking run_d4.bat)
+rem Settings: config.txt. Each bot also keeps its own logs\bot-<game id>.log.
 cd /d "%~dp0"
-set GAME=%~1
-if "%GAME%"=="" (
-  echo Usage: run_bot.bat ^<game id^>, e.g. run_bot.bat d4. Or double-click run_d4.bat.
-  pause
-  exit /b 1
-)
-if not exist config.txt (
-  copy config.example.txt config.txt > nul
-  echo config.txt created: open it, fill in the token under [%GAME%], then run this again.
-  pause
-  exit /b 1
-)
-title CarryRep %GAME%
 set PYTHONIOENCODING=utf-8
 set PY=python
 if exist python.txt set /p PY=<python.txt
 
+if not exist config.txt (
+  copy config.example.txt config.txt > nul
+  echo config.txt created: open it, fill in the tokens, then run this again.
+  pause
+  exit /b 1
+)
+
+set GAME=%~1
+if not "%GAME%"=="" goto single
+
+rem --- every game: run_all.py starts one process per game and restarts them itself ---
+title CarryRep
+"%PY%" run_all.py
+if errorlevel 2 (
+  echo Configuration problem, see the message above. Fix config.txt and run this again.
+  pause
+  exit /b 2
+)
+echo All bots stopped.
+pause
+exit /b 0
+
+rem --- one game only ---
+:single
+title CarryRep %GAME%
 :loop
 "%PY%" bot.py %GAME%
 if errorlevel 2 if not errorlevel 3 (
